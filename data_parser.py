@@ -90,18 +90,16 @@ def extract_emails(email_export_file: str):
 
 
 class TrackerManager:
-    def __init__(self, tracker_export_file: str, email_mapper: str = None):
-        # self.people = []
-        self.people = {}
+    def __init__(self):
+        self.people: dict[Person, list[EmailMessage]] = {}
+        self.email_mappings = {}  # {recv_email: map_email}
 
+    def load_tracker_csv(self, tracker_export_file: str):
         if not os.path.exists(tracker_export_file):
             print("Could not find tracker file")
             return
         elif not tracker_export_file.endswith(".csv"):
             print("Inputted tacker file is not a .csv file")
-            return
-        elif email_mapper and not os.path.exists(email_mapper):
-            print("Could not find email map file")
             return
 
         with open(tracker_export_file, encoding="utf8") as f:
@@ -118,28 +116,38 @@ class TrackerManager:
                     if match := re.search(r"[^\s@]+@[^\s@]+", i):
                         emails.append(match.group(0))
 
-                # self.people.append(Person(f"{row[0]} {row[2]}", f"{row[1]} {row[2]}", emails))
                 self.people[Person(f"{row[0]} {row[2]}", f"{row[1]} {row[2]}", emails)] = []
 
-        if email_mapper:
-            with open(email_mapper, encoding="utf8") as f:
-                mappings = json.load(f)
-                for m in mappings:
-                    if not m["map_email"]:
-                        continue
+        self.update_email_mapping()
 
-                    for p in self.people:
-                        if m["recv_email"] in p.emails:
-                            p.emails.add(m["map_email"])
+    def load_email_mapping(self, email_map_file):
+        if not os.path.exists(email_map_file):
+            print("Could not find map file")
+            return
+        elif not email_map_file.endswith(".json"):
+            print("Inputted map file is not a .json file")
+            return
+
+        with open(email_map_file, encoding="utf8") as f:
+            self.email_mappings.update({i: j["map_email"] for i, j in json.load(f).items() if j["map_email"]})
+
+        self.update_email_mapping()
+
+    def update_email_mapping(self):
+        for recv, track in self.email_mappings.items():
+            for p in self.people:
+                if track in p.emails:
+                    p.emails.add(recv)
 
     def _find_matching_person(self, msg: EmailMessage):
         email_matches = []
         name_matches = []
 
         for p in self.people:
-            if p.does_email_match(msg):
+            if msg.does_email_match(p):
                 email_matches.append(p)
-            if p.does_name_match(msg):
+
+            if msg.does_name_match(p):
                 name_matches.append(p)
 
         return email_matches, name_matches
@@ -168,44 +176,19 @@ class TrackerManager:
 
     @staticmethod
     def generate_mapping(unknown):
-        return [{"name": i[0], "recv_email": i[1], "map_email": i[2]} for i in unknown]
-
-
-# def extract_tracker(tracker_export_file: str):
-#     if not os.path.exists(tracker_export_file):
-#         print("Could not find file")
-#         return []
-#     elif not tracker_export_file.endswith(".csv"):
-#         print("Inputted file is not a .csv file")
-#         return []
-#
-#     people = []
-#     with open(tracker_export_file, encoding="utf8") as f:
-#         reader = csv.reader(f)
-#         next(reader)
-#
-#         for row in reader:
-#             # Blank Lines - Everyone should have a last name
-#             if not row[2].strip():
-#                 continue
-#
-#             emails = [row[3]]
-#             for i in row[8].split("\n"):
-#                 if match := re.search(r"[^\s@]+@[^\s@]+", i):
-#                     emails.append(match.group(0))
-#
-#             people.append(Person(f"{row[0]} {row[2]}", f"{row[1]} {row[2]}", emails))
-#     return people
+        return {i[1]: {"name": i[0], "map_email": ""} for i in unknown}
 
 
 if __name__ == "__main__":
-    # print(extract_emails("data/email_export.pst"))
-    manager = TrackerManager("data/tracker_export.csv")
-    data = extract_emails("data/email_export.pst")
+    # print(extract_emails("data/chris_email_export.pst"))
+    manager = TrackerManager()
+    manager.load_tracker_csv("data/tracker_export.csv")
+    data = extract_emails("data/email_exports/chris_email_export.pst")
 
     unknown_emails = manager.compile_emails(data)
 
     print(unknown_emails)
+    print(len(unknown_emails))
 
     # unknown = manager.compile_emails(data)
     # emails = set()
