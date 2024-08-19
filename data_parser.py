@@ -12,7 +12,9 @@ class Person:
     def __init__(self, name: str, preferred_name: str, emails: list[str]):
         self.name = (name or "").strip()
         self.preferred_name = (preferred_name or "").strip()
+
         self.emails = {i.strip() for i in emails}
+        self.sanitized_emails = {i.lower().replace(".", "") for i in self.emails}
 
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name}, preferred_name={self.preferred_name}, emails={self.emails})"
@@ -21,6 +23,10 @@ class Person:
         return re.sub(r"[^a-z\s]", "", self.name.lower()).split(), re.sub(r"[^a-z\s]", "",
                                                                           self.preferred_name.lower()).split()
 
+    def add_email(self, email):
+        self.emails.add(email)
+        self.sanitized_emails.add(email.lower().replace(".", ""))
+
     def is_same_person(self, other: 'Person'):
         if self.does_email_match(other):
             return True
@@ -28,7 +34,7 @@ class Person:
         return self.does_name_match(other)
 
     def does_email_match(self, other: 'Person'):
-        return not self.emails.isdisjoint(other.emails)
+        return not self.sanitized_emails.isdisjoint(other.sanitized_emails)
 
     def does_name_match(self, other: 'Person'):
         # Basic Name Matching ; We know that there's at least 1 intersection if the length < 4
@@ -49,9 +55,10 @@ class Person:
 
 class EmailMessage(Person):
     def __init__(self, message: pypff.message):
-        match = re.search(r"From: (.+? )?<(.+?)>", message.transport_headers or "")
-        if match:
+        if match := re.search(r"From: (.+? )?<(.+?)>", message.transport_headers or ""):
             sender_email = [match.group(2)]
+        elif match := re.search(r"From: ([^ ]+?@[^ ]+?\.[^ ]+?)", message.transport_headers or ""):
+            sender_email = [match.group(1)]
         else:
             sender_email = []
         super().__init__(message.sender_name, message.sender_name, sender_email)
@@ -100,9 +107,30 @@ def extract_emails(email_export_file: str):
 
 
 class TrackerManager:
-    def __init__(self):
+    DUMMY = Person("--- DUMMY ---", "--- DUMMY ---", ["--- DUMMY ---"])
+
+    def __init__(self, add_dummy=False):
         self.people: dict[Person, list[EmailMessage]] = {}
         self.email_mappings = {}  # {recv_email: map_email}
+
+        # Adds a dummy email if we want to count ALL emails, not just matched emails
+        self.add_dummy = add_dummy
+        if add_dummy:
+            self.people[TrackerManager.DUMMY] = []
+
+        self.blacklist = set()
+
+    def load_email_blacklist(self, blacklist_file: str):
+        if not os.path.exists(blacklist_file):
+            print("Could not find blacklist email file")
+            return
+        elif not blacklist_file.endswith(".txt"):
+            print("Inputted blacklist file is not a .txt file")
+            return
+
+        with open(blacklist_file, encoding="latin-1") as f:
+            for i in f:
+                self.blacklist.add(i.strip().lower().replace(".", ""))
 
     def load_tracker_csv(self, tracker_export_file: str):
         if not os.path.exists(tracker_export_file):
@@ -112,7 +140,7 @@ class TrackerManager:
             print("Inputted tacker file is not a .csv file")
             return
 
-        with open(tracker_export_file, encoding="utf8") as f:
+        with open(tracker_export_file, encoding="latin-1") as f:
             reader = csv.reader(f)
             next(reader)
 
@@ -138,16 +166,16 @@ class TrackerManager:
             print("Inputted map file is not a .json file")
             return
 
-        with open(email_map_file, encoding="utf8") as f:
+        with open(email_map_file, encoding="latin-1") as f:
             self.email_mappings.update({i: j["map_email"] for i, j in json.load(f).items() if j["map_email"]})
 
         self.update_email_mapping()
 
     def update_email_mapping(self):
-        for recv, track in self.email_mappings.items():
+        for recv, data in self.email_mappings.items():
             for p in self.people:
-                if track in p.emails:
-                    p.emails.add(recv)
+                if data in p.emails:
+                    p.add_email(recv)
 
     def _find_matching_person(self, msg: EmailMessage):
         email_matches = []
@@ -162,28 +190,54 @@ class TrackerManager:
 
         return email_matches, name_matches
 
+    def _email_in_blacklist(self, person: Person):
+        return not self.blacklist.isdisjoint(person.sanitized_emails)
+
     def compile_emails(self, email_export: list[EmailMessage]):
-        unknown = []
+        unknown_emails = []
 
         for e in email_export:
+            if self._email_in_blacklist(e):
+                continue
+            elif not e.emails:
+                print(f"Could not find email for `{e.name}`, skipping")
+                continue
+
             email_matches, name_matches = self._find_matching_person(e)
+            unknown = True
+
             if email_matches:
                 if len(email_matches) == 1:
                     self.people[email_matches[0]].append(e)
+                    unknown = False
                 else:
                     print(f"Message {e} email got matched with multiple people: {email_matches}, skipping")
-                    unknown.append(e)
             elif name_matches:
                 if len(name_matches) == 1:
                     self.people[name_matches[0]].append(e)
+                    unknown = False
                 else:
                     print(f"Message {e} name got matched with multiple people: {name_matches}, skipping")
-                    unknown.append(e)
-            else:
-                unknown.append(e)
 
-        return {(e.name, e.emails.pop() if e.emails else None) for e in unknown}
+            if unknown:
+                unknown_emails.append(e)
+
+                if self.add_dummy:
+                    self.people[TrackerManager.DUMMY].append(e)
+
+        return {(e.name, e.emails.pop() if e.emails else None) for e in unknown_emails}
 
     @staticmethod
     def generate_mapping(unknown):
-        return {i[1]: {"name": i[0], "map_email": ""} for i in unknown}
+        return {i[1]: {"name": i[0], "map_email": ""} for i in unknown if i[1]}
+
+
+def export_mapping(unknown, mapping_file=None):
+    mapping = TrackerManager.generate_mapping(unknown)
+
+    if mapping_file and os.path.exists(mapping_file):
+        with open(mapping_file) as f:
+            mapping.update(json.load(f))
+
+    with open(mapping_file or "data/email_mappings.json", "w") as f:
+        json.dump(mapping, f, indent=2)
