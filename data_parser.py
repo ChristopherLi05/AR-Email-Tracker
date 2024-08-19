@@ -5,6 +5,7 @@ import csv
 
 from libratom.lib.pff import PffArchive
 import pypff
+from bs4 import BeautifulSoup
 
 
 class Person:
@@ -56,6 +57,7 @@ class EmailMessage(Person):
         super().__init__(message.sender_name, message.sender_name, sender_email)
 
         self.receive_time = int(message.get_delivery_time().timestamp() * 1000)
+        self.email_contents = EmailMessage.parse_html(message.html_body)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name}, preferred_name={self.preferred_name}, emails={self.emails}, receive_time={self.receive_time})"
@@ -66,6 +68,14 @@ class EmailMessage(Person):
             return True
 
         return Person.does_name_match(self, other)
+
+    @staticmethod
+    def parse_html(html):
+        # Jank way of cutting things off at the first <hr>
+        parsed_html = BeautifulSoup((html or b"").decode("latin-1").split("<hr")[0], "html.parser")
+
+        # get_text() has some weird new lines
+        return re.sub("\n\\s+", "\n", parsed_html.get_text()).strip()
 
 
 def extract_emails(email_export_file: str):
@@ -177,36 +187,3 @@ class TrackerManager:
     @staticmethod
     def generate_mapping(unknown):
         return {i[1]: {"name": i[0], "map_email": ""} for i in unknown}
-
-
-if __name__ == "__main__":
-    # print(extract_emails("data/chris_email_export.pst"))
-    manager = TrackerManager()
-    manager.load_tracker_csv("data/tracker_export.csv")
-    data = extract_emails("data/email_exports/chris_email_export.pst")
-
-    unknown_emails = manager.compile_emails(data)
-
-    print(unknown_emails)
-    print(len(unknown_emails))
-
-    # unknown = manager.compile_emails(data)
-    # emails = set()
-    #
-    # for i in unknown:
-    #     emails.update(i.emails)
-    #
-    # print(emails)
-
-    # data1 = compile_emails(data)
-
-    # for i, j in data1.items():
-    #     print(i, len(j))
-
-    # print(extract_tracker("data/tracker_export.csv"))
-    # data = extract_tracker("data/tracker_export.csv")
-    # for i in range(len(data)):
-    #     for j in range(i + 1, len(data)):
-    #         if data[i].is_same_person(data[j]):
-    #             print(data[i], data[j])
-    #             input()
