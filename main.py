@@ -1,4 +1,5 @@
 import data_parser
+from datetime import date
 
 
 def main():
@@ -11,10 +12,12 @@ def main():
 
     unknown_emails = manager.compile_emails(data)
 
-    print(unknown_emails)
-    print(len(unknown_emails))
+    # print(unknown_emails)
+    # print(len(unknown_emails))
 
     data_parser.export_mapping(unknown_emails, "data/email_mappings.json")
+
+    print(manager.extract_weekly_emails(date(year=2024, month=5, day=22), 12))
 
     # unknown = manager.compile_emails(data)
     # emails = set()
