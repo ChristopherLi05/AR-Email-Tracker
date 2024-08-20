@@ -1,0 +1,6 @@
+{
+  "recv_email": {
+    "name": "Name",
+    "map_email": "mapped_email"
+  }
+}
