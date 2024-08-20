@@ -1,8 +1,11 @@
+import datetime
 import json
+import random
 import re
 import os
 import csv
 
+import bs4.element
 from libratom.lib.pff import PffArchive
 import pypff
 from bs4 import BeautifulSoup
@@ -78,10 +81,20 @@ class EmailMessage(Person):
 
     @staticmethod
     def parse_html(html):
-        # Jank way of cutting things off at the first <hr>
-        parsed_html = BeautifulSoup((html or b"").decode("latin-1").split("<hr")[0], "html.parser")
+        parsed_html = BeautifulSoup((html or b"").decode("latin-1").strip().split("<hr")[0].split("---- Replied Message ----")[0], "html.parser")
 
-        # get_text() has some weird new lines
+        # Jank way of removing gmail quotes
+        to_remove = [
+            ("div", {"class": "gmail_quote"}),
+            ("div", {"id": "mail-editor-reference-message-container"}),
+            ("blockquote", {"id": "isReplyContent"}),
+            ("blockquote", {"type": "cite"}),
+        ]
+
+        for tag, atr in to_remove:
+            for elem in parsed_html.find_all(tag, atr):
+                elem.decompose()
+
         return re.sub("\n\\s+", "\n", parsed_html.get_text()).strip()
 
 
@@ -230,6 +243,29 @@ class TrackerManager:
     @staticmethod
     def generate_mapping(unknown):
         return {i[1]: {"name": i[0], "map_email": ""} for i in unknown if i[1]}
+
+    def extract_weekly_emails(self, start_time: datetime.date, num_weeks):
+        start_dt = int(datetime.datetime.combine(start_time, datetime.time(), tzinfo=datetime.timezone.utc).timestamp() * 1000)
+        if start_time.weekday() != 0:
+            start_dt += (7 - start_time.weekday()) * 86400000
+
+        email_counts = [0 for _ in range(num_weeks)]
+
+        for emails in self.people.values():
+            for e in emails:
+                weeks_after = (e.receive_time - start_dt) // 604800000
+                if weeks_after >= num_weeks:
+                    # Don't count this email since it's weird
+                    print(f"Email did not found within bounds: {weeks_after}")
+                    continue
+
+                if weeks_after < 0:
+                    # Just saying everything before the 'start time' is just first week
+                    weeks_after = 0
+
+                email_counts[weeks_after] += 1
+
+        return email_counts
 
 
 def export_mapping(unknown, mapping_file=None):
