@@ -192,6 +192,16 @@ class TrackerManager:
                 if data in p.emails:
                     p.add_email(recv)
 
+    def reset_manager(self):
+        self.people: dict[Person, list[EmailMessage]] = {}
+        self.email_mappings = {}  # {recv_email: map_email}
+
+        # Adds a dummy email if we want to count ALL emails, not just matched emails
+        if self.add_dummy:
+            self.people[TrackerManager.DUMMY] = []
+
+        self.blacklist = set()
+
     def _find_matching_person(self, msg: EmailMessage):
         email_matches = []
         name_matches = []
