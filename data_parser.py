@@ -1,11 +1,9 @@
 import datetime
 import json
-import random
 import re
 import os
 import csv
 
-import bs4.element
 from libratom.lib.pff import PffArchive
 import pypff
 from bs4 import BeautifulSoup
@@ -158,14 +156,18 @@ class TrackerManager:
             next(reader)
 
             for row in reader:
+                # Row isn't long enough
+                if not len(row) > 3:
+                    continue
                 # Blank Lines - Everyone should have a last name
                 if not row[2].strip():
                     continue
 
                 emails = [row[3]]
-                for i in row[8].split("\n"):
-                    if match := re.search(r"[^\s@]+@[^\s@]+", i):
-                        emails.append(match.group(0))
+
+                # Human inputted emails
+                if len(row) > 8:
+                    emails.extend(re.findall(r"[^\s@]+@[^\s@]+", row[8]))
 
                 self.people[Person(f"{row[0]} {row[2]}", f"{row[1]} {row[2]}", emails)] = []
 
