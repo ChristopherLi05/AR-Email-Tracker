@@ -10,6 +10,10 @@ from datetime import date
 
 
 class MainFrameIO(io.StringIO):
+    """
+    Basic class to hijack Python Print
+    """
+
     def __init__(self, mainframe: 'MainFrame'):
         super().__init__()
         self.parent = mainframe
@@ -20,14 +24,20 @@ class MainFrameIO(io.StringIO):
 
 
 class MainFrame(tk.Frame):
-    def __init__(self, parent):
+    """
+    Main class to handle gui
+    """
+    def __init__(self, parent: tk.Tk):
         tk.Frame.__init__(self, parent)
 
+        # (Semi-)global manager
         self.manager = data_parser.TrackerManager(add_dummy=True)
 
+        # Locks certain functionality of the gui, not strictly needed, but it helps to stop random bugs
         self.lock_input = False
         self.lock_extract = False
 
+        # Dict of unknown emails to be used for when we export email mapping
         self.unknown_emails = {}
 
         # Hijacking print console
