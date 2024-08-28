@@ -11,7 +11,8 @@ This is a program to help tabulate the emails interns get over the summer. It is
 ## Installation
 
 1. Install [Python 3.10](https://www.python.org/downloads/) or higher 
-2. Run `install.bat` or navigate to the directory and run `python3 -m pip install -r requirements.txt` on the command line to install dependencies.
+2. Download the repository `Code -> Download ZIP` and unzip it. 
+3. Run `install.bat` or navigate to the directory and run `python3 -m pip install -r requirements.txt` on the command line to install dependencies.
 
 --- 
 
