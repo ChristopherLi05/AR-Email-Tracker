@@ -37,8 +37,8 @@ class MainFrame(tk.Frame):
         self.lock_input = False
         self.lock_extract = False
 
-        # Dict of unknown emails to be used for when we export email mapping
-        self.unknown_emails = {}
+        # Set of unknown emails to be used for when we export email mapping
+        self.unknown_emails = set()
 
         # Hijacking print console
         self.orig_stdout = sys.stdout
@@ -174,7 +174,7 @@ class MainFrame(tk.Frame):
         self.unlock_input_buttons()
         self.lock_extract_buttons()
 
-        self.unknown_emails = {}
+        self.unknown_emails = set()
 
     def lock_input_buttons(self):
         self.lock_input = False
@@ -245,7 +245,7 @@ class MainFrame(tk.Frame):
             file += ".json"
 
         with open(file, "w") as f:
-            json.dump(self.unknown_emails, f, indent=2)
+            json.dump(data_parser.TrackerManager.generate_mapping(self.unknown_emails), f, indent=2)
 
     def ext_tot_cb(self):
         if self.lock_extract:
@@ -278,7 +278,7 @@ class MainFrame(tk.Frame):
             file += ".txt"
 
         # TODO - Make this configurable
-        weekly_emails = self.manager.extract_weekly_emails(date(year=2024, month=5, day=22), 12)
+        weekly_emails = self.manager.extract_weekly_emails(start_time=date(year=2024, month=5, day=22), num_weeks=12)
         with open(file, "w") as f:
             f.write("\n".join(map(str, weekly_emails)))
 
