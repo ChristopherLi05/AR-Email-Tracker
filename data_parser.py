@@ -10,9 +10,13 @@ from bs4 import BeautifulSoup
 
 
 class Person:
-    def __init__(self, name: str, preferred_name: str, emails: list[str]):
-        self.name = (name or "").strip()
-        self.preferred_name = (preferred_name or "").strip()
+    def __init__(self, first_name: str, preferred_name: str, last_name: str, emails: list[str]):
+        self._first_name = first_name
+        self._preferred_name = preferred_name
+        self._last_name = last_name
+
+        self.name = ((first_name or "") + " " + (last_name or "")).strip()
+        self.preferred_name = ((preferred_name or "") + " " + (last_name or "")).strip()
 
         self.emails = {i.strip() for i in emails}
         self.sanitized_emails = {i.lower().replace(".", "") for i in self.emails}
@@ -62,7 +66,7 @@ class EmailMessage(Person):
             sender_email = [match.group(1)]
         else:
             sender_email = []
-        super().__init__(message.sender_name, message.sender_name, sender_email)
+        super().__init__(message.sender_name, message.sender_name, "", sender_email)
 
         self.receive_time = int(message.get_delivery_time().timestamp() * 1000)
         self.email_contents = EmailMessage.parse_html(message.html_body)
@@ -118,7 +122,7 @@ def extract_emails(email_export_file: str):
 
 
 class TrackerManager:
-    DUMMY = Person("--- DUMMY ---", "--- DUMMY ---", ["--- DUMMY ---"])
+    DUMMY = Person("--- DUMMY ---", "--- DUMMY ---", "--- DUMMY ---", ["--- DUMMY ---"])
 
     def __init__(self, add_dummy=False):
         self.people: dict[Person, list[EmailMessage]] = {}
@@ -169,7 +173,7 @@ class TrackerManager:
                 if len(row) > 8:
                     emails.extend(re.findall(r"[^\s@]+@[^\s@]+", row[8]))
 
-                self.people[Person(f"{row[0]} {row[2]}", f"{row[1]} {row[2]}", emails)] = []
+                self.people[Person(row[0], row[1], row[2], emails)] = []
 
         self.update_email_mapping()
 
@@ -278,6 +282,9 @@ class TrackerManager:
                 email_counts[weeks_after] += 1
 
         return email_counts
+
+    def extract_total_emails(self):
+        return sorted(((i._first_name, i._preferred_name, i._last_name, len(self.people[i])) for i in self.people if i != TrackerManager.DUMMY), key=lambda x: x[2].lower())
 
 
 def export_mapping(unknown, mapping_file=None):
