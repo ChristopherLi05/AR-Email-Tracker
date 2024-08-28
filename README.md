@@ -27,7 +27,7 @@ The tracker file is exactly what it says it is - it's an exported csv file from 
 
 To actually export this file, go onto the `XX_Student_Upload` of each tracker and click `File -> Export -> Download this sheet as CSV (.csv)`. Alternatively, you can download each tracker individually if students added custom mappings in their notes column.
 
-## Email Mapping File
+### Email Mapping File
 
 The Email Mapping file is a `.json` file which maps the received email to the email on the tracker. This file contains all of the emails that we were unable to automatically map to any person. When first running the program, you will not have an email mapping file, but this is ok. After going through the process once, we generate one of these for future use. 
 
